@@ -1,6 +1,6 @@
 import { isEmpty, size } from 'lodash'
-import shortid from 'shortid'
-import React, {useState} from 'react'
+import React, {useState, useEffect} from 'react'
+import { addDocument, deleteDocument, getCollection, updateDocument } from './actions'
 
 
 function App() {
@@ -9,6 +9,18 @@ function App() {
   const [editMode, setEditMode] = useState(false)
   const [id, setId] = useState("")
   const [error, setError] = useState(null)
+
+   // Actualiza el documento usando la API del navegador
+  useEffect(()=> {
+    //cuando la pagina cargue va ejecutar el getCollection
+    (async ()=>{
+      const result = await getCollection("tasks")
+      if (result.statusResponse){
+        setTasks(result.data)
+      }
+    })()
+  }, [])
+  //ARREGLO VACIO significa que este metodo se va ejecutar cuando la pagina cargue
 
   const validForm=()=> {
     let isValid = true
@@ -20,22 +32,44 @@ function App() {
     }
     return isValid
   }
-  const addTask = (e) => {
+  const addTask = async(e) => {
     e.preventDefault()
+
     if(!validForm()){
       return
     }
-    const newTask = {
-      //genero el id unico
-      id: shortid.generate(),
-      name: task
+    const result = await addDocument("tasks", {name:task} )
+
+    if(! result.statusResponse) {
+      setError(result.error)
+      return
     }
-
-    setTasks([...tasks,newTask])
+    setTasks([ ...tasks,{id: result.data.id, name:task} ])
     setTask("")
-
   }
-  const deleteTask = (id)=>{
+  const saveTask = async(e) => {
+    e.preventDefault()
+
+    if (!validForm()) {
+      return
+    }
+    const result = await updateDocument("tasks",id,{name:task})
+    if (!result.statusResponse){
+      setError(result.error)
+      return
+    }
+    const editedTasks= tasks.map(item =>item.id===id?{id,name:task}:item)
+    setTasks(editedTasks)
+    setEditMode(false)
+    setTask("")
+    setId("")
+  }
+  const deleteTask = async (id)=>{
+    const result = await deleteDocument("tasks",id)
+    if (! result.statusResponse){
+      setError(result.error)
+      return
+    }
     //filtra todas execep la recien elimine
     const filteredTasks = tasks.filter(task=>task.id!==id)
     setTasks(filteredTasks)
@@ -45,18 +79,7 @@ function App() {
     setEditMode(true)
     setId(theTask.id)
   }
-  const saveTask = (e) => {
-    e.preventDefault()
-    if (isEmpty(task)) {
-      console.log("Task empty")
-      return
-    }
-    const editedTasks= tasks.map(item =>item.id===id?{id,name:task}:item)
-    setTasks(editedTasks)
-    setEditMode(false)
-    setTask("")
-    setId("")
-  }
+
 
   return (
     <div className="container nt-5" >
@@ -103,14 +126,14 @@ function App() {
             error && <span className="text-danger">{error}</span>
             }
           <input type="text" className ="form-control mb-2" 
-          placeholder="Ingrese la tarea..."
-          onChange={(text)=>setTask(text.target.value)}
-          value={task}/>
+              placeholder="Ingrese la tarea..."
+              onChange={(text)=>setTask(text.target.value)}
+              value={task}/>
           <button 
-          className ={editMode?"btn btn-warning btn-block":
-          "btn btn-dark btn-block"} 
-          type="submit">
-            {editMode?"Guardar":"Agregar"}
+              className ={editMode?"btn btn-warning btn-block":
+              "btn btn-dark btn-block"} 
+              type="submit">
+                {editMode?"Guardar":"Agregar"}
           </button>
         </form>
       </div>
